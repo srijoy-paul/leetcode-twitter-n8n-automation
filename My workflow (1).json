@@ -1,0 +1,359 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -336,
+        -112
+      ],
+      "id": "4a551890-dce6-4686-8714-3ce3f7086898",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://alfa-leetcode-api.onrender.com/webDevelopment/submission",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -128,
+        -112
+      ],
+      "id": "3ef485f8-116e-4212-97ca-1510539dd2b4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst responseData=$input.first().json;\nconst submissions=responseData.submission || [];\n\nconst now=new Date();\nconst todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());\nconst istOffset = 5.5 * 60 * 60 * 1000;\nconst todayStartUTC=new Date(todayStart.getTime()-istOffset);\n\n//convert to unix timestamp(seconds)\nconst todayStartTimestamp=Math.floor(todayStartUTC.getTime()/1000);\nconst currentTimestamp=Math.floor(Date.now()/1000);\n\n// now Filter among the submissions based on:\n  // 1. only \"Accepted\"\n  // 2. Only from today\n  // 3. Getting only new one (latest submission for each)\n\n// all acceptance today\nconst todayAccepted=submissions.filter(sub=>{\n  const subTimestamp=parseInt(sub.timestamp);\n  return (\n    sub.statusDisplay===\"Accepted\" && subTimestamp>=todayStartTimestamp && subTimestamp<=currentTimestamp\n  );\n});\n\nconst uniqueProblems={};\ntodayAccepted.forEach(sub=>{\n  const timestamp=parseInt(sub.timestamp);\n  if(!uniqueProblems[sub.titleSlug] || timestamp>uniqueProblems[sub.titleSlug].timestamp){\n    // add in unique problems\n    uniqueProblems[sub.titleSlug]={\n      title:sub.title,\n      titleSlug:sub.titleSlug,\n      timestamp:timestamp,\n      lang:sub.lang\n    };\n  }\n});\n\nconst problemList=Object.values(uniqueProblems).sort((a,b)=>a.timestamp-b.timestamp);\n\nconst dateStr=now.toLocaleDateString('en-IN',{\n  timeZone:'Asia/Kolkata',\n  year:'numeric',\n  month:'short'\n});\n\n// calculate Day number\nconst startDate=new Date('2025-10-14');\nconst today=new Date();\n\nconst diffTime=today - startDate;\nconst diffDays=Math.floor(diffTime/(1000* 60 *60*24));\nconst dayNumber = diffDays + 1;\nreturn {\n  json:{\n    dayNumber:dayNumber,\n    problemCount:problemList.length,\n    problems:problemList,\n    date:dateStr,\n    totalSubmissions:todayAccepted.length\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        -112
+      ],
+      "id": "9a4a98d4-e67c-4799-badd-bc5496ba3fe7",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data=$input.first().json;\nconst dayNumber=data.dayNumber;\nconst problemCount=data.problemCount;\nconst problems=data.problems;\nconst date=data.date;\n\nif(problemCount===0){\n  return {json:{skip:true,reason:\"No problems solved today\"}}\n}\n\n// let tweet=\"\";\nconst header=`Day ${dayNumber} #TUFWinterArc`;\nconst footer=`@takeUforward_`\nconst maxTweetLength=280;\n\nconst reservedLen=header.length+footer.length+10;\nconst availableLength=maxTweetLength-reservedLen;\n\nfunction preparePost(problemList){\n  let tweet=`${header}\\n`;\n  problemList.forEach(prob=>{\n    tweet+=`✅ ${prob}\\n`\n  });\n  tweet+=footer;\n  return tweet;\n}\n\nlet problemsNames=problems.map(p=>p.title);\nlet tweet=preparePost(problemsNames);\n\nif(tweet.length>maxTweetLength && problemCount>2){\n  problemsNames=problems.slice(0,2).map(p=>p.title);\n  tweet=preparePost(problemsNames);\n}\n\nconst needsShortening=tweet.length>maxTweetLength;\n\n\nreturn {\n  json:{\n    tweetText: tweet,\n    dayNumber: dayNumber,\n    problemCount: problemCount,\n    characterCount: tweet.length,\n    skip: false,\n    needsShortening: needsShortening && problemCount > 0\n  }\n}\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        -112
+      ],
+      "id": "1d3581eb-f5cc-4c7a-980e-13768529fd9b",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1525752e-6be2-4d58-bccc-7561578ead85",
+              "leftValue": "={{ $json.needsShortening }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        -112
+      ],
+      "id": "886da7b0-9eff-4521-abdf-6f6a5b23d10f",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst problems = data.problems.slice(0, 2); // Only shorten first 2\n\nconst prompt = `Shorten these LeetCode problem names for a tweet. Keep them clear and technical. Max 35 chars each.\n\nProblems:\n${problems.map(p => p.title).join('\\n')}\n\nReturn ONLY shortened names, one per line.`;\n\nreturn {\n  json: {\n    prompt: prompt,\n    originalData: data\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -208
+      ],
+      "id": "3f310b53-56aa-4788-bf51-002a9f3de8f8",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYQguE5u0nViqXJ5AhCU61dBXF9sajsTQ",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1744,
+        -208
+      ],
+      "id": "7f57dbdb-f56f-4854-abb7-a4ad842b9cf8",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8098fc41-f957-4e37-8e12-9945ff5e2228",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -112
+      ],
+      "id": "b4c09520-37be-444c-85cd-11b75e65ff88",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.tweetText }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        16
+      ],
+      "id": "78b591e1-b485-4019-bf67-51b2f917e700",
+      "name": "Create Tweet",
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "5ETPUJatOIcBMmmg",
+          "name": "X account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        784,
+        -112
+      ],
+      "id": "9fcbc32f-ee6a-4522-bde8-cf264ae0c6b1",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "HyTf5ok7D0zGfxEh",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "=Day-{{ $now.format('D') }}.jpg",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "1hMPCrEMAMb5eQzxo5ZfuV4pLfBY-F8zT",
+            "mode": "list",
+            "cachedResultName": "TUFWinterArc_Images",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/1hMPCrEMAMb5eQzxo5ZfuV4pLfBY-F8zT"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        496,
+        -112
+      ],
+      "id": "ec27b311-1289-4af8-bd97-24c9e47ddc8d",
+      "name": "Search files and folders",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "HyTf5ok7D0zGfxEh",
+          "name": "Google Drive account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5613e462-7760-4994-8225-2da4f3626d1e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "95eda3e1c7b6961185dbf2b70ee490745c6e58f7740124b85993e20642fc4a4c"
+  },
+  "id": "4Zit5KJSMnWb0tIF",
+  "tags": []
+}
